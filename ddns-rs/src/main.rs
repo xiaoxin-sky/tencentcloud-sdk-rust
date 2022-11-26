@@ -1,9 +1,14 @@
-use std::{fs, path::Path};
+use std::{
+    env,
+    fs::{self, File},
+    path::Path,
+};
 
-use clap::{builder::Str, Parser};
+use clap::Parser;
+use daemonize::Daemonize;
 use ddns::DDNS;
 use ip_monitor::IpMonitor;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 mod ddns;
 mod ip_monitor;
@@ -32,6 +37,7 @@ struct Config {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let args = Args::parse();
+    // create_daemonize();
 
     let path = Path::new("config.toml");
 
@@ -59,5 +65,28 @@ fn get_config(path: &Path) -> Option<Config> {
         }
     } else {
         return None;
+    }
+}
+
+/// 创建进程守护
+fn create_daemonize() {
+    let stdout = File::create("/tmp/daemon.out").unwrap();
+    let stderr = File::create("/tmp/daemon.err").unwrap();
+
+    let daemonize = Daemonize::new()
+        .pid_file("/tmp/test.pid") // Every method except `new` and `start`
+        .chown_pid_file(true) // is optional, see `Daemonize` documentation
+        .working_directory("/tmp") // for default behaviour.
+        .user("nobody")
+        .group("daemon") // Group name
+        .group(2) // or group id.
+        .umask(0o777) // Set umask, `0o027` by default.
+        .stdout(stdout) // Redirect stdout to `/tmp/daemon.out`.
+        .stderr(stderr) // Redirect stderr to `/tmp/daemon.err`.
+        .privileged_action(|| "Executed before drop privileges");
+
+    match daemonize.start() {
+        Ok(_) => println!("start success"),
+        Err(e) => eprintln!("Error, {}", e),
     }
 }
