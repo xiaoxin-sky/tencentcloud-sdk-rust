@@ -1,2 +1,2 @@
 [workspace]
-members = ["tencentcloud-ddns", "tencentcloud-sdk-rs"]
+members = ["ddns-rs", "tencentcloud-sdk-rs"]
