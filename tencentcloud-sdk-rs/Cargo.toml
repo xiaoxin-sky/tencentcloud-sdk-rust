@@ -2,6 +2,10 @@
 name = "tencentcloud-sdk-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Tencent Cloud SDK Implementation(base API 3.0) in Rust. Support Tencent Cloud API request,Sign"
+keywords = ["Tencent Cloud", "skd", "DDNS", "tencent-cloud"]
+categories = ["authentication", "api-bindings"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
