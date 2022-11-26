@@ -8,7 +8,7 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug",
-            "program": "${workspaceFolder}/target/debug/ddns",
+            "program": "${workspaceFolder}/target/debug/tencentcloud-ddns",
             "args": [],
             "cwd": "${workspaceFolder}"
         }

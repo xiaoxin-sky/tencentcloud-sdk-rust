@@ -21,9 +21,10 @@ pub struct IpMonitor {
 }
 
 impl IpMonitor {
-    pub fn new(ddns: DDNS) -> Self {
+    pub async fn new(ddns: DDNS) -> Self {
+        let current_ip = IpMonitor::get_record_ip(&ddns).await;
         return IpMonitor {
-            current_ip: Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1),
+            current_ip,
             last_time: SystemTime::now(),
             check_frequency: Duration::from_secs(5),
             ddns,
@@ -36,18 +37,47 @@ impl IpMonitor {
             select! {
                 recv(ticker) -> _ => {
                     let _ = &self.check_ip().await;
-                    let _ = self.ddns.change_record(self.current_ip.to_string()).await;
+                    let record_item = self.ddns.get_current_record().await;
+                    if let Some(item) =record_item{
+                        if item.value != self.current_ip.to_string(){
+                            let res = self.ddns.change_record(item, self.current_ip.to_string()).await;
+                            if let Ok(res) = res{
+                                println!("更新 ip 状态:{}",res);
+                            }else{
+                                println!("更新失败");
+                            };
+                        }
+                    }
                 },
             }
+        }
+    }
+
+    /// 获取域名远程ip
+    async fn get_record_ip(ddns: &DDNS) -> Ipv6Addr {
+        let record_item = ddns.get_current_record().await;
+        if let Some(item) = record_item {
+            match Ipv6Addr::from_str(&item.value) {
+                Ok(ip) => ip,
+                Err(_) => Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1),
+            }
+        } else {
+            Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)
         }
     }
 
     async fn check_ip(&mut self) {
         if let Ok(ip) = get_ip().await {
             if ip != self.current_ip.to_string() {
-                println!("检测到ip不一致开始更新,原ip{}", self.current_ip.to_string());
+                println!(
+                    "检测到ip不一致开始更新,原ip:{}, 现ip:{}",
+                    self.current_ip.to_string(),
+                    ip
+                );
                 self.current_ip = Ipv6Addr::from_str(&ip).unwrap();
                 self.last_time = SystemTime::now();
+            } else {
+                println!("ip未发生变动,检测时间");
             }
         }
     }

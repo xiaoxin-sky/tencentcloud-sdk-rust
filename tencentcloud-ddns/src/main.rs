@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ddns = DDNS::new(secret_id, secret_key, domain);
 
-    let mut ip_monitor = IpMonitor::new(ddns);
+    let mut ip_monitor = IpMonitor::new(ddns).await;
 
     ip_monitor.main_loop().await;
 

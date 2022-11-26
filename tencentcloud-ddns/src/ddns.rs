@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tencentcloud_sdk_rs::client::ReqClient;
 
-use crate::ip_monitor::IpMonitor;
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct ModifyRecordRequest {
@@ -75,6 +73,7 @@ struct ModifyRecordRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
 struct DescribeRecordList {
     domain: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -84,11 +83,11 @@ struct DescribeRecordList {
 /// 记录列表元素
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-struct RecordListItem {
+pub struct RecordListItem {
     /// 记录Id
-    record_id: i64,
+    pub record_id: i64,
     /// 记录值
-    value: String,
+    pub value: String,
     /// 主机名
     name: String,
     /// 记录类型
@@ -159,70 +158,56 @@ impl DDNS {
         }
     }
 
-    pub async fn get_current_record(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let res = self.query_record_list().await?;
-        let res = self.query_record_list().await?;
+    /// 获取当前域名对应的第一个AAAA解析记录
+    pub async fn get_current_record(&self) -> Option<RecordListItem> {
+        let res = self.query_record_list().await.expect("请求列表出错");
 
         if let Some(mut record_list) = res.record_list {
-            if let Some(item) = record_list.pop() {
-                let RecordListItem {
-                    line: Line,
-                    Type,
-                    record_id: RecordId,
-                    name: Name,
-                    ..
-                } = item;
-                return Ok(());
-            }
+            record_list.pop()
+        } else {
+            println!("获取失败");
+            None
         }
-        Ok(())
     }
 
-    pub async fn change_record(&self, value: String) -> Result<bool, Box<dyn std::error::Error>> {
-        let res = self.query_record_list().await?;
+    pub async fn change_record(
+        &self,
+        record_item: RecordListItem,
+        value: String,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let RecordListItem {
+            line,
+            Type,
+            record_id,
+            name,
+            ..
+        } = record_item;
+        let res = self
+            .sdk_client
+            .send::<ModifyRecordRequest, ModifyRecordResponse>(
+                "ModifyRecord".to_string(),
+                ModifyRecordRequest {
+                    Value: value,
+                    Domain: self.domain.clone(),
+                    RecordType: Type,
+                    RecordLine: line,
+                    RecordId: record_id,
+                    SubDomain: Some(name),
+                    DomainId: None,
+                    RecordLineId: None,
+                    MX: None,
+                    TTL: None,
+                    Weight: None,
+                    Status: None,
+                },
+            )
+            .await?;
 
-        if let Some(mut record_list) = res.record_list {
-            if let Some(item) = record_list.pop() {
-                let RecordListItem {
-                    line: Line,
-                    Type,
-                    record_id: RecordId,
-                    name: Name,
-                    ..
-                } = item;
-
-                let res = self
-                    .sdk_client
-                    .send::<ModifyRecordRequest, ModifyRecordResponse>(
-                        "ModifyRecord".to_string(),
-                        ModifyRecordRequest {
-                            Value: value,
-                            Domain: self.domain.clone(),
-                            RecordType: Type,
-                            RecordLine: Line,
-                            RecordId,
-                            SubDomain: Some(Name),
-                            DomainId: None,
-                            RecordLineId: None,
-                            MX: None,
-                            TTL: None,
-                            Weight: None,
-                            Status: None,
-                        },
-                    )
-                    .await?;
-
-                if let Some(e) = res.response.error {
-                    return Err(e.message.into());
-                } else {
-                    println!("修改 ddns 成功");
-                    return Ok(true);
-                }
-            } else {
-                return Err("()".into());
-            };
+        if let Some(e) = res.response.error {
+            return Err(e.message.into());
         } else {
-            return Err("can't find record list item".into());
+            println!("修改 ddns 成功");
+            return Ok(true);
         }
     }
 }
