@@ -79,6 +79,8 @@ impl IpMonitor {
             } else {
                 println!("ip未发生变动,检测时间");
             }
+        } else {
+            panic!("查询ip失败,请检查当前是否处在 ipv6 环境")
         }
     }
 }

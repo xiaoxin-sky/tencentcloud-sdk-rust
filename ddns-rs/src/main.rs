@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{self, File},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use clap::Parser;
@@ -17,11 +17,17 @@ mod ip_monitor;
 #[command(author, version)]
 struct Args {
     /// 腾讯云 secret_id
+    #[arg(default_value_t = String::from(""))]
     secret_id: String,
     /// 腾讯云 secret_key
+    #[arg(default_value_t = String::from(""))]
     secret_key: String,
     /// 需要绑定的域名
+    #[arg(short, long, default_value_t = String::from(""))]
     domain: String,
+    /// 配置文件地址
+    #[arg(short, long, default_value_t = String::from("config.toml"))]
+    config: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -36,12 +42,11 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // let args = Args::parse();
-    // create_daemonize();
+    let args = Args::parse();
 
-    let path = Path::new("config.toml");
+    let config_path = PathBuf::from(args.config);
 
-    let config = get_config(&path);
+    let config = get_config(&config_path);
     if let Some(config) = config {
         let ddns = DDNS::new(config.secret_id, config.secret_key, config.domain);
 
@@ -58,13 +63,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// 查询配置文件
 fn get_config(path: &Path) -> Option<Config> {
     let config_string = fs::read_to_string(path);
-    if let Ok(config) = config_string {
-        match toml::from_str(&config) {
+    match config_string {
+        Ok(config) => match toml::from_str(&config) {
             Ok(config) => Some(config),
-            Err(e) => None,
+            Err(e) => {
+                println!("{}", e);
+                None
+            }
+        },
+        Err(e) => {
+            println!("readFile error-{}", e);
+            return None;
         }
-    } else {
-        return None;
     }
 }
 
