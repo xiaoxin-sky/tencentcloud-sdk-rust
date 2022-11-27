@@ -1,4 +1,4 @@
-# tencent cloud SKD implement In rust(base v3)
+# tencent cloud SKD implement In rust(base API 3.0)
 
 The repo has multiple crate. If needed later, more may be added.
 
