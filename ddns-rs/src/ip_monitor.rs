@@ -5,6 +5,7 @@ use std::{
 };
 
 use crossbeam_channel::{select, tick};
+use tokio::time::sleep;
 
 use crate::ddns::DDNS;
 
@@ -36,7 +37,19 @@ impl IpMonitor {
         loop {
             select! {
                 recv(ticker) -> _ => {
-                    let _ = &self.check_ip().await;
+                    let mut count = 10;
+                    loop{
+                        let check_res = &self.check_ip().await;
+                        if *check_res {
+                            break;
+                        }else{
+                            count = count-1;
+                            sleep(Duration::from_secs(10)).await;
+                            println!("检查失败,正在重试第{}次",count);
+                        }
+
+                    }
+
                     let record_item = self.ddns.get_current_record().await;
                     if let Some(item) =record_item{
                         if item.value != self.current_ip.to_string(){
@@ -66,7 +79,7 @@ impl IpMonitor {
         }
     }
 
-    async fn check_ip(&mut self) {
+    async fn check_ip(&mut self) -> bool {
         if let Ok(ip) = get_ip().await {
             if ip != self.current_ip.to_string() {
                 println!(
@@ -79,8 +92,10 @@ impl IpMonitor {
             } else {
                 println!("ip未发生变动,检测时间");
             }
+            true
         } else {
-            panic!("查询ip失败,请检查当前是否处在 ipv6 环境")
+            println!("查询ip失败,请检查当前是否处在 ipv6 环境");
+            false
         }
     }
 }
