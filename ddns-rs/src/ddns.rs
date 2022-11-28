@@ -160,13 +160,16 @@ impl DDNS {
 
     /// 获取当前域名对应的第一个AAAA解析记录
     pub async fn get_current_record(&self) -> Option<RecordListItem> {
-        let res = self.query_record_list().await.expect("请求列表出错");
-
-        if let Some(mut record_list) = res.record_list {
-            record_list.pop()
-        } else {
-            println!("获取失败");
-            None
+        match self.query_record_list().await {
+            Ok(res) => {
+                if let Some(mut record_list) = res.record_list {
+                    record_list.pop()
+                } else {
+                    println!("获取失败");
+                    None
+                }
+            }
+            Err(_) => None,
         }
     }
 

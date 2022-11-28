@@ -50,17 +50,30 @@ impl IpMonitor {
 
                     }
 
-                    let record_item = self.ddns.get_current_record().await;
-                    if let Some(item) =record_item{
-                        if item.value != self.current_ip.to_string(){
-                            let res = self.ddns.change_record(item, self.current_ip.to_string()).await;
-                            if let Ok(res) = res{
-                                println!("更新 ip 状态:{}",res);
-                            }else{
-                                println!("更新失败");
-                            };
+                    let mut count = 10;
+                    loop{
+                        let record_item = self.ddns.get_current_record().await;
+                        if record_item.is_some() {
+                            if let Some(item) =record_item{
+                                if item.value != self.current_ip.to_string(){
+                                    let res = self.ddns.change_record(item, self.current_ip.to_string()).await;
+                                    if let Ok(res) = res{
+                                        println!("更新 ip 状态:{}",res);
+                                    }else{
+                                        println!("更新失败");
+                                    };
+                                }
+                            }
+                            break;
+                        }else{
+                            count = count-1;
+                            sleep(Duration::from_secs(10)).await;
+                            println!("检查失败,正在重试第{}次",count);
                         }
+
                     }
+
+
                 },
             }
         }
