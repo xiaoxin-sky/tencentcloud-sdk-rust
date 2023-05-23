@@ -1,7 +1,11 @@
 use std::{
     env,
     fs::{self, File},
+    future::Future,
     path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
 };
 
 use clap::Parser;
@@ -9,6 +13,7 @@ use daemonize::Daemonize;
 use ddns::DDNS;
 use ip_monitor::IpMonitor;
 use serde::Deserialize;
+use tokio::{sync::Mutex, time::sleep};
 
 mod ddns;
 mod ip_monitor;
@@ -38,6 +43,8 @@ struct Config {
     secret_key: String,
     /// 需要绑定的域名
     domain: String,
+    /// 二级域名
+    subdomain: String,
 }
 
 #[tokio::main]
@@ -48,11 +55,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = get_config(&config_path);
     if let Some(config) = config {
-        let ddns = DDNS::new(config.secret_id, config.secret_key, config.domain);
-        ddns.query_record_by_name().await;
-        // let mut ip_monitor = IpMonitor::new(ddns).await;
-
-        // ip_monitor.main_loop().await;
+        let ddns = Arc::new(Mutex::new(DDNS::new(
+            config.secret_id,
+            config.secret_key,
+            config.domain,
+            config.subdomain,
+        )));
+        // let record_item = ddns
+        //     .lock()
+        //     .await
+        //     .query_record_by_name(config.subdomain)
+        //     .await?;
+        // println!("解析记录id：{:#?}", record_id);
+        let mut ip_monitor = IpMonitor::new();
+        let _ = ip_monitor.main_loop(ddns.clone()).await;
     } else {
         println!("没有找到配置文件 config.toml");
     }

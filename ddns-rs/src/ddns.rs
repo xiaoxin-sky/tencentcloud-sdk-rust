@@ -1,5 +1,8 @@
+use std::time::{Duration, SystemTime};
+
 use serde::{Deserialize, Serialize};
 use tencentcloud_sdk_rs::client::ReqClient;
+use tokio::time::sleep;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -81,7 +84,7 @@ struct DescribeRecordList {
 }
 
 /// 记录列表元素
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct RecordListItem {
     /// 记录Id
@@ -123,16 +126,21 @@ struct ModifyRecordResponse {
 pub struct DDNS {
     domain: String,
     sdk_client: ReqClient,
+    subdomain: String,
 }
 
 impl DDNS {
-    pub fn new(secret_id: String, secret_key: String, domain: String) -> Self {
+    pub fn new(secret_id: String, secret_key: String, domain: String, subdomain: String) -> Self {
         let host = "dnspod.tencentcloudapi.com".to_string();
         let service = "dnspod".to_string();
 
         let sdk_client = ReqClient::new(secret_id, secret_key, host.clone(), service);
 
-        return Self { sdk_client, domain };
+        return Self {
+            sdk_client,
+            domain,
+            subdomain,
+        };
     }
 
     pub async fn query_record_list(
@@ -174,20 +182,15 @@ impl DDNS {
         }
     }
 
-    pub async fn query_record_by_name(&self) {
-        match self.query_record_list(None).await {
-            Ok(res) => {
-                match res.record_list {
-                    Some(record) => {
-                        // let res = record.iter().find(|&x| {x.});
-                        print!("{:?}", record);
-                        ()
-                    }
-                    None => (),
-                };
-            }
-            Err(_) => (),
-        };
+    /// 通过二级域名查找解析记录
+    pub async fn query_record_by_name(&self) -> Result<RecordListItem, Box<dyn std::error::Error>> {
+        let res = self.query_record_list(None).await?;
+        let record = res.record_list.expect("查询列表失败");
+        let res = record
+            .iter()
+            .find(|&x| x.name == self.subdomain)
+            .expect("未找到，先去手动绑定!");
+        return Ok(res.clone());
     }
 
     pub async fn change_record(
@@ -229,5 +232,42 @@ impl DDNS {
             println!("修改 ddns 成功");
             return Ok(true);
         }
+    }
+
+    pub async fn change_record_loop(&self, current_ip: &str, tx: tokio::sync::mpsc::Sender<bool>) {
+        let mut count = 10;
+        loop {
+            match self.query_record_by_name().await {
+                Ok(item) => {
+                    if item.value != current_ip {
+                        let res = self.change_record(item, current_ip.to_owned()).await;
+                        match res {
+                            Ok(res) => {
+                                println!(
+                                    "发现ip变化，解析时间：current_time:{:?}",
+                                    SystemTime::now()
+                                );
+                                // tx.send(true).await;
+                            }
+                            Err(e) => {
+                                println!("更新 ip 状态失败");
+
+                                // tx.send(false).await;
+                            }
+                        }
+                    } else {
+                        println!("ip未发生变化");
+                    }
+                    break;
+                }
+                Err(_) => {
+                    count -= 1;
+                    sleep(Duration::from_secs(10)).await;
+                    println!("检查失败,正在重试第{}次", count);
+                }
+            };
+        }
+
+        // tx.send(true).await;
     }
 }
