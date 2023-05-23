@@ -137,6 +137,7 @@ impl DDNS {
 
     pub async fn query_record_list(
         &self,
+        record_type: Option<String>,
     ) -> Result<DescribeRecordListResponse, Box<dyn std::error::Error>> {
         let res = self
             .sdk_client
@@ -144,7 +145,7 @@ impl DDNS {
                 "DescribeRecordList".to_string(),
                 DescribeRecordList {
                     domain: self.domain.clone(),
-                    record_type: Some("AAAA".to_string()),
+                    record_type: record_type,
                 },
             )
             .await?;
@@ -160,7 +161,7 @@ impl DDNS {
 
     /// 获取当前域名对应的第一个AAAA解析记录
     pub async fn get_current_record(&self) -> Option<RecordListItem> {
-        match self.query_record_list().await {
+        match self.query_record_list(Some(String::from("AAAA"))).await {
             Ok(res) => {
                 if let Some(mut record_list) = res.record_list {
                     record_list.pop()
@@ -171,6 +172,22 @@ impl DDNS {
             }
             Err(_) => None,
         }
+    }
+
+    pub async fn query_record_by_name(&self) {
+        match self.query_record_list(None).await {
+            Ok(res) => {
+                match res.record_list {
+                    Some(record) => {
+                        // let res = record.iter().find(|&x| {x.});
+                        print!("{:?}", record);
+                        ()
+                    }
+                    None => (),
+                };
+            }
+            Err(_) => (),
+        };
     }
 
     pub async fn change_record(

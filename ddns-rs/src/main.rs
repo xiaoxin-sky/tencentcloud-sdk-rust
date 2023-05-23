@@ -49,10 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_config(&config_path);
     if let Some(config) = config {
         let ddns = DDNS::new(config.secret_id, config.secret_key, config.domain);
+        ddns.query_record_by_name().await;
+        // let mut ip_monitor = IpMonitor::new(ddns).await;
 
-        let mut ip_monitor = IpMonitor::new(ddns).await;
-
-        ip_monitor.main_loop().await;
+        // ip_monitor.main_loop().await;
     } else {
         println!("没有找到配置文件 config.toml");
     }
